@@ -1,27 +1,38 @@
-const express = require("express");
-const fs = require("fs");
-const path = require("path");
-const multer = require("multer");
-const http = require("http");
+import express from "express";
+import {
+  existsSync,
+  mkdirSync,
+  rmSync,
+  readdirSync,
+  renameSync,
+  unlinkSync,
+} from "fs";
+import { join } from "path";
+import multer, { diskStorage } from "multer";
+import { request } from "http";
+import filenamify from "filenamify";
+import bodyParser from "body-parser";
 
 const app = express();
 const imagesDir = "images";
 
-const multerStorage = multer.diskStorage({
+const multerStorage = diskStorage({
   destination: (req, _, cb) => {
-    const folderPath = path.join(imagesDir, req.params.groupName);
-    if (!fs.existsSync(folderPath))
-      fs.mkdirSync(folderPath, { recursive: true });
+    const folderPath = join(imagesDir, req.params.groupName);
+    if (!existsSync(folderPath)) mkdirSync(folderPath, { recursive: true });
     cb(null, folderPath);
   },
-  filename: (_, file, cb) => cb(null, file.originalname),
+  filename: (_, file, cb) => cb(null, filenamify(file.originalname)),
 });
 const upload = multer({ storage: multerStorage });
+
+app.use(bodyParser.json());
+app.use("/images", express.static(imagesDir));
 
 app.post(
   "/api/images/:groupName",
   authorize,
-  upload.array("images", 10),
+  upload.array("images", 50),
   async (_, res) => {
     res.send("Images uploaded successfully!");
   }
@@ -29,26 +40,23 @@ app.post(
 
 app.delete("/api/images/:groupName", authorize, async (req, res) => {
   const groupName = req.params.groupName;
-  const folderPath = path.join(imagesDir, groupName);
-  if (!fs.existsSync(folderPath)) {
+  const folderPath = join(imagesDir, groupName);
+  if (!existsSync(folderPath)) {
     return res.status(404).send("Group not found");
   }
-  fs.rmSync(folderPath, { recursive: true });
+  rmSync(folderPath, { recursive: true });
   res.send("Group and images deleted successfully!");
 });
 
 app.get("/api/images/:groupName", async (req, res) => {
   const groupName = req.params.groupName;
-  const folderPath = path.join(imagesDir, groupName);
-  if (!fs.existsSync(folderPath)) {
+  const folderPath = join(imagesDir, groupName);
+  if (!existsSync(folderPath)) {
     return res.status(404).send("Group not found");
   }
-  const imageUrls = fs
-    .readdirSync(folderPath)
-    .map(
-      (file) =>
-        `${req.protocol}://${req.get("host")}/images/${groupName}/${file}`
-    );
+  const imageUrls = readdirSync(folderPath).map(
+    (file) => `${req.protocol}://${req.get("host")}/images/${groupName}/${file}`
+  );
   res.json(imageUrls);
 });
 
@@ -56,7 +64,37 @@ app.get("/", async (_, res) => {
   res.send("Image server");
 });
 
-app.use("/images", express.static(imagesDir));
+app.put("/api/images/:groupName", authorize, async (req, res) => {
+  const groupName = req.params.groupName;
+  const folderPath = join(imagesDir, groupName);
+  if (!existsSync(folderPath)) {
+    return res.status(404).send("Group not found");
+  }
+  const data = req.body;
+  if (
+    !data ||
+    typeof data[Symbol.iterator] !== "function" ||
+    !data.every((i) => i.old)
+  ) {
+    return res.status(400).send("Expected { old: string, new?: string }[]");
+  }
+  if (data.some((i) => i.old.includes("/") || i.old.includes("\\"))) {
+    return res.status(400).send("Path should not contain '/' or '\\'");
+  }
+  for (const item of data) {
+    const filePath = join(folderPath, item.old);
+    if (!existsSync(filePath)) continue;
+    if (item.new) {
+      renameSync(filePath, join(folderPath, filenamify(item.new)));
+    } else {
+      unlinkSync(filePath);
+    }
+  }
+  const imageUrls = readdirSync(folderPath).map(
+    (file) => `${req.protocol}://${req.get("host")}/images/${groupName}/${file}`
+  );
+  res.json(imageUrls);
+});
 
 app.listen(3001, () => {
   console.log("Server running on http://localhost:3001");
@@ -84,6 +122,6 @@ async function authorize(req, res, next) {
 
 function doRequest(options) {
   return new Promise((resolve, reject) =>
-    http.request(options).on("response", resolve).on("error", reject).end()
+    request(options).on("response", resolve).on("error", reject).end()
   );
 }
