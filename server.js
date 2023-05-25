@@ -11,7 +11,6 @@ import { join } from "path";
 import multer, { diskStorage } from "multer";
 import { request } from "http";
 import filenamify from "filenamify";
-import bodyParser from "body-parser";
 
 const app = express();
 const imagesDir = "images";
@@ -26,8 +25,7 @@ const multerStorage = diskStorage({
 });
 const upload = multer({ storage: multerStorage });
 
-app.use(bodyParser.json());
-app.use("/images", express.static(imagesDir));
+app.use(express.json()).use("/images", express.static(imagesDir));
 
 app.post(
   "/api/images/:groupName",
@@ -74,7 +72,7 @@ app.put("/api/images/:groupName", authorize, async (req, res) => {
   if (
     !data ||
     typeof data[Symbol.iterator] !== "function" ||
-    !data.every((i) => i.old)
+    !data.every((i) => typeof i?.old === "string")
   ) {
     return res.status(400).send("Expected { old: string, new?: string }[]");
   }
@@ -85,7 +83,7 @@ app.put("/api/images/:groupName", authorize, async (req, res) => {
     const filePath = join(folderPath, item.old);
     if (!existsSync(filePath)) continue;
     if (item.new) {
-      renameSync(filePath, join(folderPath, filenamify(item.new)));
+      renameSync(filePath, join(folderPath, filenamify(item.new + "")));
     } else {
       unlinkSync(filePath);
     }
@@ -96,8 +94,10 @@ app.put("/api/images/:groupName", authorize, async (req, res) => {
   res.json(imageUrls);
 });
 
-app.listen(3001, () => {
-  console.log("Server running on http://localhost:3001");
+app.listen(process.env.PORT, () => {
+  console.log(
+    `⚡️[server]: Server running at http://localhost:${process.env.PORT}`
+  );
 });
 
 async function authorize(req, res, next) {
