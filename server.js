@@ -53,7 +53,7 @@ app.get("/api/images/:groupName", async (req, res) => {
     return res.status(404).send("Group not found");
   }
   const imageUrls = readdirSync(folderPath).map(
-    (file) => `${req.protocol}://${req.get("host")}/images/${groupName}/${file}`
+    (file) => `images/${groupName}/${file}`
   );
   res.json(imageUrls);
 });
@@ -89,14 +89,16 @@ app.put("/api/images/:groupName", authorize, async (req, res) => {
     }
   }
   const imageUrls = readdirSync(folderPath).map(
-    (file) => `${req.protocol}://${req.get("host")}/images/${groupName}/${file}`
+    (file) => `images/${groupName}/${file}`
   );
   res.json(imageUrls);
 });
 
-app.listen(process.env.PORT, () => {
+app.listen(process.env.PORT || 3001, () => {
   console.log(
-    `⚡️[server]: Server running at http://localhost:${process.env.PORT}`
+    `⚡️[server]: Server running at http://localhost:${
+      process.env.PORT || 3001
+    }`
   );
 });
 
