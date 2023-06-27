@@ -1,0 +1,18 @@
+name: PR to develop/master runs Hadolint when Dockerfile is changed
+on:
+  pull_request:
+    branches:
+      - develop
+      - master
+    paths:
+      - Dockerfile
+
+jobs:
+  hadolint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: ftrip-io/github-ci/hadolint@bb917a63506cbb7b428ad081c63cb3e59820666b
+        with:
+          dockerfile: Dockerfile
