@@ -10,7 +10,6 @@ module.exports = {
         changelogFile: "docs/CHANGELOG.md",
       },
     ],
-    "@semantic-release/npm",
     [
       "@semantic-release/github",
       {
